@@ -1,5 +1,4 @@
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
-SET time_zone = "+00:00";
 
 CREATE TABLE categories (
   id int(10) unsigned NOT NULL AUTO_INCREMENT,
@@ -7,6 +6,7 @@ CREATE TABLE categories (
   added_by int(10) unsigned NOT NULL,
   title varchar(255) NOT NULL,
   description text NOT NULL,
+  exposed tinyint(1) NOT NULL DEFAULT '1',
   available_from int(10) unsigned NOT NULL DEFAULT '0',
   available_until int(10) unsigned NOT NULL DEFAULT '0',
   PRIMARY KEY (id)
@@ -19,13 +19,14 @@ CREATE TABLE challenges (
   title varchar(255) NOT NULL,
   category smallint(5) unsigned NOT NULL,
   description text NOT NULL,
+  exposed tinyint(1) NOT NULL DEFAULT '1',
   available_from int(10) unsigned NOT NULL DEFAULT '0',
   available_until int(10) unsigned NOT NULL DEFAULT '0',
   flag text NOT NULL,
   case_insensitive tinyint(1) NOT NULL DEFAULT '1',
   automark tinyint(1) NOT NULL DEFAULT '1',
-  points int(10) unsigned NOT NULL,
-  num_attempts_allowed tinyint(3) unsigned NOT NULL DEFAULT '5',
+  points int(10) unsigned NOT NULL DEFAULT '0',
+  num_attempts_allowed tinyint(3) unsigned NOT NULL DEFAULT '0',
   min_seconds_between_submissions smallint(5) unsigned NOT NULL DEFAULT '0',
   relies_on int(10) unsigned DEFAULT NULL,
   PRIMARY KEY (id),
@@ -79,7 +80,7 @@ CREATE TABLE exceptions (
   added int(10) unsigned NOT NULL,
   added_by int(10) unsigned NOT NULL,
   message varchar(255) NOT NULL,
-  `code` int(10) unsigned NOT NULL,
+  `code` varchar(10) NOT NULL,
   trace text NOT NULL,
   `file` varchar(255) NOT NULL,
   line int(10) unsigned NOT NULL,
@@ -95,10 +96,13 @@ CREATE TABLE files (
   added_by int(10) unsigned NOT NULL,
   title varchar(255) NOT NULL,
   size int(10) unsigned NOT NULL,
+  md5 char(32) NOT NULL,
+  download_key char(64) NOT NULL,
   challenge int(10) unsigned NOT NULL,
   file_type enum('local','remote') NOT NULL DEFAULT 'local',
   PRIMARY KEY (id),
-  KEY challenge (challenge)
+  KEY challenge (challenge),
+  UNIQUE KEY (download_key)
 ) ENGINE=InnoDB  DEFAULT CHARSET=utf8;
 
 CREATE TABLE hints (
@@ -160,7 +164,7 @@ CREATE TABLE reset_password (
   ip int(10) unsigned NOT NULL,
   auth_key char(64) NOT NULL,
   PRIMARY KEY (id),
-  UNIQUE KEY user_key (user_id,auth_key)
+  KEY user_key (user_id,auth_key)
 ) ENGINE=InnoDB  DEFAULT CHARSET=utf8;
 
 CREATE TABLE restrict_email (
@@ -180,7 +184,7 @@ CREATE TABLE submissions (
   challenge int(10) unsigned NOT NULL,
   user_id int(10) unsigned NOT NULL,
   flag text NOT NULL,
-  correct tinyint(1) NOT NULL,
+  correct tinyint(1) NOT NULL DEFAULT '0',
   marked tinyint(1) NOT NULL DEFAULT '0',
   PRIMARY KEY (id),
   KEY challenge (challenge),
@@ -201,7 +205,9 @@ CREATE TABLE users (
   email varchar(255) NOT NULL,
   team_name varchar(255) NOT NULL,
   added int(10) unsigned NOT NULL,
+  last_active int(10) unsigned NOT NULL DEFAULT '0',
   passhash varchar(255) NOT NULL,
+  download_key char(64) NOT NULL,
   class tinyint(4) NOT NULL DEFAULT '0',
   enabled tinyint(1) NOT NULL DEFAULT '1',
   user_type tinyint(3) unsigned NOT NULL DEFAULT '0',
@@ -209,8 +215,9 @@ CREATE TABLE users (
   country_id smallint(5) unsigned NOT NULL,
   2fa_status enum('disabled','generated','enabled') NOT NULL DEFAULT 'disabled',
   PRIMARY KEY (id),
-  UNIQUE KEY username (email),
-  UNIQUE KEY team_name (team_name)
+  UNIQUE KEY email (email),
+  UNIQUE KEY team_name (team_name),
+  UNIQUE KEY (download_key)
 ) ENGINE=InnoDB  DEFAULT CHARSET=utf8;
 
 CREATE TABLE user_types (

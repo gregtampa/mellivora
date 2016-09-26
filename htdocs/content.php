@@ -5,7 +5,7 @@ require('../include/mellivora.inc.php');
 login_session_refresh();
 
 if (!isset($_GET['show'])) {
-    message_error('Please request a page to show');
+    message_error(lang_get('please_request_page'));
 }
 
 $menu_data = db_select_one(
@@ -19,7 +19,7 @@ $menu_data = db_select_one(
 );
 
 if (!is_valid_id($menu_data['internal_page'])) {
-    message_error("That isn't a valid link.");
+    message_error(lang_get('not_a_valid_link'));
 }
 
 $content = db_select_one(
@@ -46,12 +46,7 @@ if (cache_start($content['id'], CONFIG_CACHE_TIME_DYNAMIC, CONST_CACHE_DYNAMIC_P
 
     section_head($content['title']);
 
-    require(CONST_PATH_THIRDPARTY . 'nbbc/nbbc.php');
-
-    $bbc = new BBCode();
-    $bbc->SetEnableSmileys(false);
-
-    echo $bbc->parse($content['body']);
+    echo get_bbcode()->parse($content['body']);
 
     cache_end($content['id'], CONST_CACHE_DYNAMIC_PAGES_GROUP);
 }

@@ -18,12 +18,14 @@ function store_file($challenge_id, $file) {
             'added_by'=>$_SESSION['id'],
             'title'=>$file['name'],
             'size'=>$file['size'],
+            'md5'=>md5_file($file['tmp_name']),
+            'download_key'=>hash('sha256', generate_random_string(128)),
             'challenge'=>$challenge_id
         )
     );
 
     if (file_exists(CONST_PATH_FILE_UPLOAD . $file_id)) {
-        message_error('File already existed! This should never happen!');
+        message_error('Upload failed: A file with ID (' . $file_id . ') already existed on disk!');
     }
 
     // do we put the file on AWS S3?
@@ -50,6 +52,7 @@ function store_file($challenge_id, $file) {
                 'Key'    => $file_key
             ));
         } catch (Exception $e) {
+            delete_file($file_id);
             message_error('Caught exception uploading file to S3: ' . $e->getMessage());
         }
     }
@@ -102,6 +105,17 @@ function download_file($file) {
         }
     }
 
+    $file_title = $file['title'];
+
+    if (defined('CONFIG_APPEND_MD5_TO_DOWNLOADS') && CONFIG_APPEND_MD5_TO_DOWNLOADS && $file['md5']) {
+        $pos = strpos($file['title'], '.');
+        if ($pos) {
+            $file_title = substr($file['title'], 0, $pos) . '-' . $file['md5'] . substr($file['title'], $pos);
+        } else {
+            $file_title = $file_title . '-' . $file['md5'];
+        }
+    }
+
     // required for IE, otherwise Content-disposition is ignored
     if(ini_get('zlib.output_compression')) {
         ini_set('zlib.output_compression', 'Off');
@@ -114,7 +128,7 @@ function download_file($file) {
     header('Cache-Control: private', false); // required for certain browsers
 
     header('Content-Type: application/force-download');
-    header('Content-Disposition: attachment; filename="'.$file['title'].'";');
+    header('Content-Disposition: attachment; filename="'.$file_title.'";');
     header('Content-Transfer-Encoding: binary');
     header('Content-Length: '.$file['size']);
 

@@ -1,28 +1,28 @@
-Mellivora on EC2 (Ubuntu 14.04)
+Mellivora on EC2 (Ubuntu 16.04)
 =========
 
 This readme serves as a super-quick guide to setting up Mellivora on an EC2 instance.
 EC2 is Amazon's cloud hosting service.
-Instructions will be valid for any Ubuntu 14.04 server setup.
+Instructions will be valid for any Ubuntu 16.04 server setup.
 
 Estimated setup time: 15 minutes.
 
 ### Preliminary
 
-Launch and SSH into a clean Ubuntu 14.04 instance. Point a domain name to the instance IP.
+Launch and SSH into a clean Ubuntu 16.04 instance.
 
 ### Installation
 
 ```sh
 sudo apt-get update && sudo apt-get -y upgrade
-sudo tasksel
+sudo apt-get -y install tasksel && sudo tasksel
 ```
-Select LAMP server and follow prompts.
+Select **LAMP server** and follow prompts.
 
 
 Install required PHP extensions
 ```sh
-sudo apt-get install php5-curl
+sudo apt-get install php-curl php-pear php-mbstring
 ```
 
 Install Composer
@@ -33,7 +33,7 @@ sudo mv composer.phar /usr/local/bin/composer
 
 Make /var/www/ writable.
 ```sh
-sudo chown -R ubuntu:ubuntu /var/www/
+sudo chown -R $(whoami):$(whoami) /var/www/
 cd /var/www/
 ```
 
@@ -45,7 +45,7 @@ git clone https://github.com/Nakiami/mellivora.git
 
 Fetch required dependencies using Composer
 ```sh
-cd /var/www/mellivora/include/thirdparty/composer/
+cd /var/www/mellivora/
 composer install
 ```
 
@@ -67,10 +67,9 @@ sudo cp /var/www/mellivora/install/mellivora.apache.conf /etc/apache2/sites-avai
 sudo vim /etc/apache2/sites-available/mellivora.conf
 ```
 
-Disable the default Apache site. Activate Mellivora and enable SSL support. Restart Apache.
+Disable the default Apache site. Activate Mellivora. Restart Apache.
 ```sh
 sudo a2dissite 000-default
-sudo a2enmod ssl
 sudo a2ensite mellivora
 sudo service apache2 restart
 ```
@@ -84,10 +83,10 @@ mysql mellivora -u root -p < /var/www/mellivora/install/countries.sql
 
 Create a new MySQL user.
 ```sh
-echo "GRANT ALL PRIVILEGES ON mellivora.* To 'melDbUser'@'%' IDENTIFIED BY 'melDbUserPassword';" | mysql -u root -p
+echo "GRANT ALL PRIVILEGES ON mellivora.* TO 'YourUserName'@'%' IDENTIFIED BY 'YourPassword';" | mysql -u root -p
 ```
 
-Update the database config settings.
+Update the database config settings to use the database and user we created above.
 ```sh
 vim /var/www/mellivora/include/config/db.inc.php
 ```

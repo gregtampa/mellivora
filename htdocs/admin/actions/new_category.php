@@ -10,6 +10,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
     if ($_POST['action'] == 'new') {
 
+        require_fields(array('title'), $_POST);
+
        $id = db_insert(
           'categories',
           array(
@@ -17,6 +19,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
              'added_by'=>$_SESSION['id'],
              'title'=>$_POST['title'],
              'description'=>$_POST['description'],
+             'exposed'=>$_POST['exposed'],
              'available_from'=>strtotime($_POST['available_from']),
              'available_until'=>strtotime($_POST['available_until'])
           )

@@ -141,17 +141,17 @@ function form_select ($opts, $name, $value, $selected, $option, $optgroup='') {
     $group = '';
     foreach ($opts as $opt) {
 
-        if ($optgroup && $group != $opt[$optgroup]) {
+        if ($optgroup && $group != array_get($opt, $optgroup)) {
             if ($group) {
                 echo '</optgroup>';
             }
-            echo '<optgroup label="',htmlspecialchars($opt[$optgroup]),'">';
+            echo '<optgroup label="',htmlspecialchars(array_get($opt, $optgroup)),'">';
         }
 
         echo '<option value="',htmlspecialchars($opt[$value]),'"',($opt[$value] == $selected ? ' selected="selected"' : ''),'>', htmlspecialchars($opt[$option]), '</option>';
 
         if ($optgroup) {
-            $group = $opt[$optgroup];
+            $group = array_get($opt, $optgroup);
         }
     }
 
@@ -181,9 +181,9 @@ function form_bbcode_manual() {
 
 function form_logout() {
     echo '
-    <form action="actions/logout" method="post">
+    <form action="/actions/logout" method="post">
         ',form_xsrf_token(),'
-        <input type="submit" value="Log out" />
+        <button type="submit" id="logout-button">',lang_get('log_out'),'</button>
     </form>
     ';
 }
@@ -200,7 +200,7 @@ function country_select() {
     );
 
     echo '<select name="country" class="form-control" required="required">
-            <option disabled selected>-- Please select a country --</option>';
+            <option disabled selected>-- ',lang_get('please_select_country'),' --</option>';
 
     foreach ($countries as $country) {
         echo '<option value="',htmlspecialchars($country['id']),'">',htmlspecialchars($country['country_name']),'</option>';
@@ -241,4 +241,17 @@ function user_class_select($selected = null) {
     );
 
     form_select($options, 'Min user class', 'val', $selected, 'opt');
+}
+
+function require_fields($required, $form_data) {
+    $empties = array();
+    foreach ($form_data as $key => $value) {
+        if (in_array($key, $required) && empty($value)) {
+            $empties[] = $key;
+        }
+    }
+
+    if (!empty($empties)) {
+        message_error('Missing required field data for: ' . implode(', ', $empties));
+    }
 }

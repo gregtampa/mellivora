@@ -15,6 +15,7 @@ function send_email (
     $mail = new PHPMailer();
     $mail->IsHTML($is_html);
     $mail->XMailer = ' ';
+    $mail->CharSet = 'UTF-8';
 
     $successfully_sent_to = array();
 
@@ -78,13 +79,8 @@ function send_email (
 
         // HTML email
         if ($is_html) {
-            require(CONST_PATH_THIRDPARTY . 'nbbc/nbbc.php');
-
-            $bbc = new BBCode();
-            $bbc->SetEnableSmileys(false);
-
             // we assume the email has come to us in BBCode format
-            $mail->MsgHTML($bbc->parse($body));
+            $mail->MsgHTML(get_bbcode()->parse($body));
         }
 
         // plain old simple email
@@ -140,7 +136,7 @@ function validate_email ($email) {
     if (!valid_email($email)) {
         log_exception(new Exception('Invalid Email'));
 
-        message_error('That doesn\'t look like an email. Please go back and double check the form.');
+        message_error(lang_get('not_a_valid_email'));
     }
 }
 

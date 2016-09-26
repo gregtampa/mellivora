@@ -14,6 +14,10 @@ function short_description ($string, $len) {
     return $string;
 }
 
+function unichr($code) {
+    return mb_convert_encoding('&#x'.$code.';', 'UTF-8', 'HTML-ENTITIES');
+}
+
 function requested_file_name () {
     $pathinfo = pathinfo($_SERVER['SCRIPT_NAME']);
     return $pathinfo['filename'];
@@ -130,7 +134,20 @@ function validate_id ($id) {
             log_exception(new Exception('Invalid ID'));
         }
 
-        message_error('Something went wrong.');
+        message_generic_error();
+    }
+
+    return true;
+}
+
+function validate_integer ($id) {
+    if (!is_integer_value($id)) {
+
+        if (CONFIG_LOG_VALIDATION_FAILURE_ID) {
+            log_exception(new Exception('Invalid integer value'));
+        }
+
+        message_generic_error();
     }
 
     return true;
@@ -213,27 +230,68 @@ function seconds_to_pretty_time ($seconds) {
     $diff = $time->diff($start);
 
     if ($diff->y) {
-        $time_string = $diff->y . append_if_plural(' year', 's', $diff->y) . ($diff->m ? ', ' . $diff->m . append_if_plural(' month', 's', $diff->m)  : '');
+        $time_string = $diff->y . append_if_plural(
+                ' '.lang_get('year'),
+                lang_get('append_to_time_to_make_plural'),
+                $diff->y
+            ) . ($diff->m ? ', ' . $diff->m . append_if_plural(
+                    ' '.lang_get('month'),
+                    lang_get('append_to_time_to_make_plural'),
+                    $diff->m
+                ) : '');
     }
 
     else if ($diff->m) {
-        $time_string = $diff->m . append_if_plural(' month', 's', $diff->m) . ($diff->d ? ', ' . $diff->d . append_if_plural(' day', 's', $diff->d) : '');
+        $time_string = $diff->m . append_if_plural(
+                ' '.lang_get('month'),
+                lang_get('append_to_time_to_make_plural'),
+                $diff->m
+            ) . ($diff->d ? ', ' . $diff->d . append_if_plural(
+                    ' '.lang_get('day'),
+                    lang_get('append_to_time_to_make_plural'),
+                    $diff->d
+                ) : '');
     }
 
     else if ($diff->d) {
-        $time_string = $diff->d . append_if_plural(' day', 's', $diff->d) . ($diff->h ? ', ' . $diff->h . append_if_plural(' hour', 's', $diff->h) : '');
+        $time_string = $diff->d . append_if_plural(
+                ' '.lang_get('day'),
+                lang_get('append_to_time_to_make_plural'),
+                $diff->d) . ($diff->h ? ', ' . $diff->h . append_if_plural(
+                    ' '.lang_get('hour'),
+                    lang_get('append_to_time_to_make_plural'),
+                    $diff->h
+                ) : '');
     }
 
     else if ($diff->h) {
-        $time_string = $diff->h . append_if_plural(' hour', 's', $diff->h) . ($diff->i ? ', ' . $diff->i . append_if_plural(' minute', 's', $diff->i) : '');
+        $time_string = $diff->h . append_if_plural(
+                ' '.lang_get('hour'),
+                lang_get('append_to_time_to_make_plural'),
+                $diff->h) . ($diff->i ? ', ' . $diff->i . append_if_plural(
+                    ' '.lang_get('minute'),
+                    lang_get('append_to_time_to_make_plural'),
+                    $diff->i
+                ) : '');
     }
 
     else if ($diff->i) {
-        $time_string = $diff->i . append_if_plural(' minute', 's', $diff->i) . ($diff->s ? ', ' . $diff->s . append_if_plural(' second', 's', $diff->s) : '');
+        $time_string = $diff->i . append_if_plural(
+                ' '.lang_get('minute'),
+                lang_get('append_to_time_to_make_plural'),
+                $diff->i) . ($diff->s ? ', ' . $diff->s . append_if_plural(
+                    ' '.lang_get('second'),
+                    lang_get('append_to_time_to_make_plural'),
+                    $diff->s
+                ) : '');
     }
 
     else {
-        $time_string = $diff->s . append_if_plural(' second', 's', $diff->s);
+        $time_string = $diff->s . append_if_plural(
+                ' '.lang_get('second'),
+                lang_get('append_to_time_to_make_plural'),
+                $diff->s
+            );
     }
 
     return ($seconds < 0 ? '-' : '') . $time_string;
@@ -315,6 +373,10 @@ function ends_with($haystack, $needle) {
 }
 
 function redirect ($url, $absolute = false) {
+    if (strpos($url, '/actions/') !== false) {
+        $url = CONFIG_INDEX_REDIRECT_TO;
+    }
+
     if (!$absolute) {
         $url = CONFIG_SITE_URL . trim($url, '/');
     }
@@ -325,27 +387,65 @@ function redirect ($url, $absolute = false) {
     exit();
 }
 
-function check_server_configuration() {
-    // check for DB and PHP time mismatch
-    $dbInfo = db_query_fetch_one('SELECT UNIX_TIMESTAMP() AS timestamp');
-    $time = time();
-    $error = abs($time - $dbInfo['timestamp']);
-    if ($error >= 5) {
-        message_inline_red('Database and PHP times are out of sync.
-        This will likely cause problems.
-        DB time: '.date_time($dbInfo['timestamp']).', PHP time: '.date_time($time).' ('.$error.' seconds off).
-        Maybe you have different time zones set?');
-    }
+function get_num_participating_users() {
+    $res = db_query_fetch_one('
+        SELECT COUNT(*) AS num FROM (
+          (
+            SELECT u.id
+            FROM users AS u
+            JOIN submissions AS s ON s.user_id = u.id AND s.correct
+            JOIN challenges AS c ON c.id = s.challenge
+            WHERE u.competing = 1
+            GROUP BY u.id
+            HAVING SUM(c.points) > 0
+          ) UNION DISTINCT (
+            SELECT DISTINCT id
+            FROM users
+            WHERE last_active > UNIX_TIMESTAMP(NOW() - INTERVAL 1 DAY) AND competing = 1
+          )
+        ) AS x
+    ');
 
+    return $res['num'];
+}
+
+function check_server_configuration() {
+    check_server_and_db_time();
+    check_server_writable_dirs();
+    check_server_php_version();
+}
+
+function check_server_php_version() {
+    if (version_compare(PHP_VERSION, CONST_MIN_REQUIRED_PHP_VERSION, '<')) {
+        message_inline_red('Your version of PHP is too old. You need at least '.CONST_MIN_REQUIRED_PHP_VERSION.'. You are running: ' . PHP_VERSION);
+    }
+}
+
+function check_server_writable_dirs() {
     // check that our writable dirs are writable
     foreach (get_directory_list_recursive(CONST_PATH_FILE_WRITABLE) as $dir) {
         if (!is_writable($dir)) {
             message_inline_red('Directory ('.$dir.') must be writable by Apache.');
         }
     }
+}
 
-    if (version_compare(PHP_VERSION, CONST_MIN_REQUIRED_PHP_VERSION, '<')) {
-        message_inline_red('Your version of PHP is too old. You need at least '.CONST_MIN_REQUIRED_PHP_VERSION.'. You are running: ' . PHP_VERSION);
+function check_server_and_db_time() {
+    // check for DB and PHP time mismatch
+    $dbInfo = db_query_fetch_one('SELECT UNIX_TIMESTAMP() AS timestamp, TIMESTAMPDIFF(SECOND, UTC_TIMESTAMP(), NOW()) AS timezone_offzet_seconds');
+    $time = time();
+    $error = abs($time - $dbInfo['timestamp']);
+    if ($error >= 5) {
+        message_inline_red('Database and PHP times are out of sync.
+        This will cause problems.
+        DB time: '.date_time($dbInfo['timestamp']).', PHP time: '.date_time($time).' ('.$error.' seconds off).');
+    }
+
+    $php_timezone_offzet_seconds = date('Z');
+    if ($php_timezone_offzet_seconds != $dbInfo['timezone_offzet_seconds']) {
+        message_inline_red('PHP and Database timezones are different.
+        This will cause problems.
+        PHP zone: ' . $php_timezone_offzet_seconds / 3600 . ', Database zone: ' . $dbInfo['timezone_offzet_seconds'] / 3600);
     }
 }
 
@@ -370,12 +470,64 @@ function array_get ($array, $key, $default = null) {
     return isset($array[$key]) ? $array[$key] : $default;
 }
 
-function array_search_matching_key ($needle, $haystack, $key) {
-    foreach ($haystack as $element) {
-        if (array_get($element, $key) === $needle) {
-            return $element;
+function to_permalink ($string) {
+
+    $string = strtolower($string);
+    $string = preg_replace('/[^a-z0-9\-\s]/', '', $string);
+    $string = preg_replace('/\s+/', ' ', $string);
+    $string = trim($string);
+
+    return str_replace(
+        array(' '),
+        array('-'),
+        $string
+    );
+}
+
+function array_search_matching_key ($needle, $haystack, $key, $transform_using_function = null) {
+
+    if ($transform_using_function) {
+        foreach ($haystack as $element) {
+            if (
+                call_user_func(
+                    $transform_using_function,
+                    array_get($element, $key)
+                ) == call_user_func(
+                    $transform_using_function,
+                    $needle
+                )
+            ) {
+                return $element;
+            }
+        }
+    } else {
+        foreach ($haystack as $element) {
+            if (array_get($element, $key) == $needle) {
+                return $element;
+            }
         }
     }
 
     return false;
+}
+
+function is_item_available($available_from, $available_until) {
+    $now = time();
+
+    if ($available_from > $now) {
+        return false;
+    }
+
+    if ($available_until < $now) {
+        return false;
+    }
+
+    return true;
+}
+
+function empty_to_zero($val) {
+    if (empty($val)) {
+        return 0;
+    }
+    return $val;
 }
